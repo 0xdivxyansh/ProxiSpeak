@@ -1,0 +1,32 @@
+rules_version = '2';
+
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    // Default deny
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+
+    // Audio storage path: /audio/{userId}/{audioFileName}
+    match /audio/{userId}/{audioFileName} {
+      // Direct client upload (if not using pre-signed backend URLs):
+      // - Must be authenticated as the path owner
+      // - Max size: 10MB (10485760 bytes)
+      // - Content type: audio MIME types only
+      allow write: if request.auth != null
+        && request.auth.uid == userId
+        && request.resource.size <= 10 * 1024 * 1024
+        && request.resource.contentType.matches('audio/.*');
+
+      // Direct client download:
+      // In production, playback uses backend time-limited signed URLs.
+      // If direct access is attempted, only the owner can read their own files.
+      allow read: if request.auth != null && request.auth.uid == userId;
+
+      // Direct client delete:
+      // Only the authenticated owner can delete their storage file
+      allow delete: if request.auth != null && request.auth.uid == userId;
+    }
+  }
+}

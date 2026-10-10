@@ -23,12 +23,31 @@ export function createApp(): Application {
   );
 
   // 2. CORS configuration
-  const allowedOrigins =
-    env.CORS_ORIGIN === '*' ? '*' : env.CORS_ORIGIN.split(',').map((origin) => origin.trim());
+  const corsOriginHandler = (
+    origin: string | undefined,
+    callback: (err: Error | null, allow?: boolean) => void,
+  ) => {
+    // Non-browser or server-to-server requests have no Origin header
+    if (!origin) return callback(null, true);
+
+    if (env.CORS_ORIGIN === '*') return callback(null, true);
+
+    // In development/test mode, dynamically allow any localhost or 127.0.0.1 port
+    if (env.NODE_ENV !== 'production' && /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin)) {
+      return callback(null, true);
+    }
+
+    const configuredOrigins = env.CORS_ORIGIN.split(',').map((o) => o.trim());
+    if (configuredOrigins.includes(origin)) {
+      return callback(null, true);
+    }
+
+    return callback(null, false);
+  };
 
   app.use(
     cors({
-      origin: allowedOrigins,
+      origin: corsOriginHandler,
       credentials: true,
       methods: ['GET', 'POST', 'PATCH', 'PUT', 'DELETE', 'OPTIONS'],
       allowedHeaders: ['Content-Type', 'Authorization', 'X-Request-Id'],

@@ -102,8 +102,17 @@ export const audioApi = {
     onProgress?: (progressPercent: number) => void,
   ): Promise<void> {
     return new Promise((resolve, reject) => {
+      // In local development, route local backend URLs through the Vite proxy (/api)
+      // to guarantee same-origin requests and avoid any cross-origin port issues
+      let targetUrl = uploadUrl;
+      if (targetUrl.startsWith('http://localhost:5000/api/')) {
+        targetUrl = targetUrl.replace('http://localhost:5000/api/', '/api/');
+      } else if (targetUrl.startsWith('http://127.0.0.1:5000/api/')) {
+        targetUrl = targetUrl.replace('http://127.0.0.1:5000/api/', '/api/');
+      }
+
       const xhr = new XMLHttpRequest();
-      xhr.open('PUT', uploadUrl);
+      xhr.open('PUT', targetUrl);
       xhr.setRequestHeader('Content-Type', mimeType);
 
       if (xhr.upload && onProgress) {
@@ -132,8 +141,14 @@ export const audioApi = {
     return apiClient.post<AudioRecordingDetail>(`/audio/${audioId}/complete`);
   },
 
-  getPlayback(audioId: string): Promise<PlaybackResponse> {
-    return apiClient.get<PlaybackResponse>(`/audio/${audioId}/playback`);
+  async getPlayback(audioId: string): Promise<PlaybackResponse> {
+    const res = await apiClient.get<PlaybackResponse>(`/audio/${audioId}/playback`);
+    if (res.playbackUrl.startsWith('http://localhost:5000/api/')) {
+      res.playbackUrl = res.playbackUrl.replace('http://localhost:5000/api/', '/api/');
+    } else if (res.playbackUrl.startsWith('http://127.0.0.1:5000/api/')) {
+      res.playbackUrl = res.playbackUrl.replace('http://127.0.0.1:5000/api/', '/api/');
+    }
+    return res;
   },
 
   getById(audioId: string): Promise<AudioRecordingDetail> {

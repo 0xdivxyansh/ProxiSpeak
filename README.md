@@ -105,23 +105,29 @@ Review and adjust variables in `.env`:
 - `FIREBASE_STORAGE_BUCKET`: Storage bucket name (default: `proxispeak-dev.appspot.com`)
 - `FIREBASE_SERVICE_ACCOUNT_KEY` or `FIREBASE_SERVICE_ACCOUNT_PATH`: Credentials for production / live cloud access.
 
-### Running the Application
+### Running the Full-Stack Application
+
+You can start the backend and frontend in separate terminals:
 
 ```bash
-# Development mode with hot-reloading (tsx watch)
+# Terminal 1: Start Backend (Express API on port 5000)
 npm run dev
 
-# Production build
-npm run build
-
-# Start production server
-npm start
+# Terminal 2: Start Frontend (Vite + React on port 5173)
+npm run dev:frontend
 ```
 
 Once running, access:
+- **ProxiSpeak Web App**: [http://localhost:5173](http://localhost:5173)
 - **Interactive Swagger UI**: [http://localhost:5000/api-docs](http://localhost:5000/api-docs)
 - **OpenAPI 3.0 JSON**: [http://localhost:5000/api-docs.json](http://localhost:5000/api-docs.json)
 - **Health Check**: [http://localhost:5000/api/v1/health](http://localhost:5000/api/v1/health)
+
+### Building Both Frontend & Backend
+
+```bash
+npm run build:all
+```
 
 ---
 

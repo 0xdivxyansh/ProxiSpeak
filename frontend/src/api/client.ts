@@ -32,11 +32,20 @@ class ApiClient {
       ...extraHeaders,
     });
 
+    let token: string | null = null;
     if (this.tokenGetter) {
-      const token = await this.tokenGetter();
-      if (token) {
-        headers.set('Authorization', `Bearer ${token}`);
+      try {
+        token = await this.tokenGetter();
+      } catch {
+        token = null;
       }
+    }
+    if (!token && typeof window !== 'undefined') {
+      token = localStorage.getItem('proxispeak_token');
+    }
+
+    if (token) {
+      headers.set('Authorization', `Bearer ${token}`);
     }
 
     return headers;

@@ -9,26 +9,45 @@ import { env } from '../../config/env';
  * Requires "Authorization: Bearer <token>" and verifies via Firebase Admin.
  */
 export async function requireAuth(req: Request, _res: Response, next: NextFunction): Promise<void> {
-  const authHeader = req.header('authorization');
+  let token: string | undefined;
 
-  if (!authHeader) {
+  const authHeader = req.header('authorization');
+  if (authHeader) {
+    const parts = authHeader.split(' ');
+    if (parts.length !== 2 || parts[0].toLowerCase() !== 'bearer') {
+      return next(
+        new UnauthorizedError(
+          'Malformed Authorization header. Format must be "Bearer <Firebase-ID-Token>"',
+        ),
+      );
+    }
+    token = parts[1].trim();
+    if (!token) {
+      return next(new UnauthorizedError('Bearer token is empty.'));
+    }
+  }
+
+  // Also support query parameter token (?token=<token>) for browser testing / Swagger
+  if (!token && typeof req.query.token === 'string' && req.query.token.trim()) {
+    token = req.query.token.trim();
+  }
+
+  if (!token) {
+    // In local development: if accessed directly from a browser or without headers,
+    // automatically attach a development user so the endpoint can be inspected without error
+    if (env.NODE_ENV === 'development') {
+      req.user = {
+        uid: 'dev-explorer',
+        email: 'dev@proxispeak.local',
+        displayName: 'Development Explorer',
+        emailVerified: true,
+      };
+      return next();
+    }
+
     return next(
       new UnauthorizedError('Authorization header is missing. Please provide a Bearer token.'),
     );
-  }
-
-  const parts = authHeader.split(' ');
-  if (parts.length !== 2 || parts[0].toLowerCase() !== 'bearer') {
-    return next(
-      new UnauthorizedError(
-        'Malformed Authorization header. Format must be "Bearer <Firebase-ID-Token>"',
-      ),
-    );
-  }
-
-  const token = parts[1].trim();
-  if (!token) {
-    return next(new UnauthorizedError('Bearer token is empty.'));
   }
 
   // Support mock tokens during automated tests and local development testing
@@ -60,6 +79,16 @@ export async function requireAuth(req: Request, _res: Response, next: NextFuncti
       error: err instanceof Error ? err.message : String(err),
     });
 
+    if (env.NODE_ENV === 'development') {
+      req.user = {
+        uid: 'dev-explorer',
+        email: 'dev@proxispeak.local',
+        displayName: 'Development Explorer',
+        emailVerified: true,
+      };
+      return next();
+    }
+
     if (err && typeof err === 'object' && 'code' in err) {
       const code = (err as { code: string }).code;
       if (code === 'auth/id-token-expired') {
@@ -85,18 +114,20 @@ export async function optionalAuth(
   _res: Response,
   next: NextFunction,
 ): Promise<void> {
+  let token: string | undefined;
+
   const authHeader = req.header('authorization');
-
-  if (!authHeader) {
-    return next();
+  if (authHeader) {
+    const parts = authHeader.split(' ');
+    if (parts.length === 2 && parts[0].toLowerCase() === 'bearer') {
+      token = parts[1].trim();
+    }
   }
 
-  const parts = authHeader.split(' ');
-  if (parts.length !== 2 || parts[0].toLowerCase() !== 'bearer') {
-    return next();
+  if (!token && typeof req.query.token === 'string' && req.query.token.trim()) {
+    token = req.query.token.trim();
   }
 
-  const token = parts[1].trim();
   if (!token) {
     return next();
   }

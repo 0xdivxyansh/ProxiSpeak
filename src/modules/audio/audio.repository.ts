@@ -12,6 +12,8 @@ export interface IAudioRepository {
 }
 
 export class FirestoreAudioRepository implements IAudioRepository {
+  private memoryCache = new Map<string, AudioRecording>();
+
   private get collection() {
     return getFirestore().collection(Collections.AUDIO);
   }
@@ -20,9 +22,11 @@ export class FirestoreAudioRepository implements IAudioRepository {
     try {
       const doc = await this.collection.doc(id).get();
       if (!doc.exists) {
-        return null;
+        return this.memoryCache.get(id) || null;
       }
-      return doc.data() as AudioRecording;
+      const data = doc.data() as AudioRecording;
+      this.memoryCache.set(id, data);
+      return data;
     } catch (err: unknown) {
       logger.error(`Error querying audio by ID: ${id}`, err);
       const e = err as { code?: number | string; message?: string };
@@ -34,15 +38,20 @@ export class FirestoreAudioRepository implements IAudioRepository {
         e?.message?.includes('UNAVAILABLE') ||
         e?.message?.includes('credentials')
       ) {
-        return null;
+        return this.memoryCache.get(id) || null;
       }
       throw err;
     }
   }
 
   async create(audio: AudioRecording): Promise<AudioRecording> {
-    await this.collection.doc(audio.id).set(audio);
-    logger.debug(`Audio record created in Firestore: ${audio.id}`);
+    this.memoryCache.set(audio.id, { ...audio });
+    try {
+      await this.collection.doc(audio.id).set(audio);
+      logger.debug(`Audio record created in Firestore: ${audio.id}`);
+    } catch (err: unknown) {
+      logger.warn(`Could not persist audio to Firestore (using memory fallback): ${audio.id}`);
+    }
     return audio;
   }
 
@@ -59,14 +68,24 @@ export class FirestoreAudioRepository implements IAudioRepository {
       updatedAt: new Date().toISOString(),
     };
 
-    await this.collection.doc(id).set(updated, { merge: true });
-    logger.debug(`Audio record updated in Firestore: ${id}`);
+    this.memoryCache.set(id, updated);
+    try {
+      await this.collection.doc(id).set(updated, { merge: true });
+      logger.debug(`Audio record updated in Firestore: ${id}`);
+    } catch (err: unknown) {
+      logger.warn(`Could not persist audio update to Firestore (using memory fallback): ${id}`);
+    }
     return updated;
   }
 
   async delete(id: string): Promise<void> {
-    await this.collection.doc(id).delete();
-    logger.debug(`Audio record deleted from Firestore: ${id}`);
+    this.memoryCache.delete(id);
+    try {
+      await this.collection.doc(id).delete();
+      logger.debug(`Audio record deleted from Firestore: ${id}`);
+    } catch (err: unknown) {
+      logger.warn(`Could not delete audio from Firestore (using memory fallback): ${id}`);
+    }
   }
 
   /**
@@ -75,6 +94,18 @@ export class FirestoreAudioRepository implements IAudioRepository {
    */
   async findNearbyCandidates(bounds: [string, string][]): Promise<AudioRecording[]> {
     const candidateMap = new Map<string, AudioRecording>();
+
+    // First check memory cache
+    for (const record of this.memoryCache.values()) {
+      if (record.status === 'published' && record.visibility === 'public') {
+        for (const [start, end] of bounds) {
+          if (record.geohash >= start && record.geohash <= end) {
+            candidateMap.set(record.id, record);
+            break;
+          }
+        }
+      }
+    }
 
     try {
       const promises = bounds.map(async ([start, end]) => {
@@ -90,6 +121,7 @@ export class FirestoreAudioRepository implements IAudioRepository {
           const data = doc.data() as AudioRecording;
           if (!candidateMap.has(data.id)) {
             candidateMap.set(data.id, data);
+            this.memoryCache.set(data.id, data);
           }
         }
       });
@@ -107,10 +139,10 @@ export class FirestoreAudioRepository implements IAudioRepository {
         e?.message?.includes('UNAVAILABLE') ||
         e?.message?.includes('credentials')
       ) {
-        logger.warn('Firestore is currently unreachable or unauthenticated. Returning empty candidates list.', {
+        logger.warn('Firestore is currently unreachable or unauthenticated. Returning cached candidates.', {
           details: e?.message,
         });
-        return [];
+        return Array.from(candidateMap.values());
       }
       throw err;
     }

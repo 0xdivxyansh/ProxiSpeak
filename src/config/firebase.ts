@@ -32,6 +32,10 @@ export function initializeFirebase(): App {
       auth: env.FIREBASE_AUTH_EMULATOR_HOST,
       storage: env.FIREBASE_STORAGE_EMULATOR_HOST,
     });
+  } else {
+    delete process.env.FIRESTORE_EMULATOR_HOST;
+    delete process.env.FIREBASE_AUTH_EMULATOR_HOST;
+    delete process.env.FIREBASE_STORAGE_EMULATOR_HOST;
   }
 
   let credential;

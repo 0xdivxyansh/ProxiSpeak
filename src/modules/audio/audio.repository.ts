@@ -17,11 +17,27 @@ export class FirestoreAudioRepository implements IAudioRepository {
   }
 
   async findById(id: string): Promise<AudioRecording | null> {
-    const doc = await this.collection.doc(id).get();
-    if (!doc.exists) {
-      return null;
+    try {
+      const doc = await this.collection.doc(id).get();
+      if (!doc.exists) {
+        return null;
+      }
+      return doc.data() as AudioRecording;
+    } catch (err: unknown) {
+      logger.error(`Error querying audio by ID: ${id}`, err);
+      const e = err as { code?: number | string; message?: string };
+      if (
+        e?.code === 14 ||
+        e?.code === 7 ||
+        e?.code === 16 ||
+        e?.message?.includes('ECONNREFUSED') ||
+        e?.message?.includes('UNAVAILABLE') ||
+        e?.message?.includes('credentials')
+      ) {
+        return null;
+      }
+      throw err;
     }
-    return doc.data() as AudioRecording;
   }
 
   async create(audio: AudioRecording): Promise<AudioRecording> {
@@ -80,8 +96,22 @@ export class FirestoreAudioRepository implements IAudioRepository {
 
       await Promise.all(promises);
       return Array.from(candidateMap.values());
-    } catch (err) {
+    } catch (err: unknown) {
       logger.error('Error querying Firestore for geohash bounds', err);
+      const e = err as { code?: number | string; message?: string };
+      if (
+        e?.code === 14 ||
+        e?.code === 7 ||
+        e?.code === 16 ||
+        e?.message?.includes('ECONNREFUSED') ||
+        e?.message?.includes('UNAVAILABLE') ||
+        e?.message?.includes('credentials')
+      ) {
+        logger.warn('Firestore is currently unreachable or unauthenticated. Returning empty candidates list.', {
+          details: e?.message,
+        });
+        return [];
+      }
       throw err;
     }
   }

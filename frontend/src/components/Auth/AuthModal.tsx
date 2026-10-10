@@ -40,7 +40,22 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
       }
       onClose();
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'Authentication failed';
+      let msg = err instanceof Error ? err.message : 'Authentication failed';
+      if (msg.includes('auth/configuration-not-found') || msg.includes('configuration-not-found')) {
+        msg = 'Firebase Authentication is not yet enabled in your Firebase Console. Go to console.firebase.google.com -> Build -> Authentication -> "Get Started" -> Enable "Email/Password". Or click the "Quick Test Account" tab above to test immediately!';
+      } else if (msg.includes('auth/operation-not-allowed')) {
+        msg = 'Email/Password sign-in provider is disabled. Please enable it in Firebase Console -> Authentication -> Sign-in method.';
+      } else if (msg.includes('auth/email-already-in-use')) {
+        msg = 'This email is already registered. Please switch to Email Login.';
+      } else if (msg.includes('auth/wrong-password') || msg.includes('auth/invalid-credential')) {
+        msg = 'Incorrect email or password.';
+      } else if (msg.includes('auth/user-not-found')) {
+        msg = 'No user account found with this email. Please click "Register" to create one.';
+      } else if (msg.includes('auth/weak-password')) {
+        msg = 'Password should be at least 6 characters.';
+      } else if (msg.includes('auth/invalid-email')) {
+        msg = 'Please enter a valid email address.';
+      }
       setError(msg);
     } finally {
       setLoading(false);

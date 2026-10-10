@@ -15,11 +15,27 @@ export class FirestoreUserRepository implements IUserRepository {
   }
 
   async findById(uid: string): Promise<UserProfile | null> {
-    const doc = await this.collection.doc(uid).get();
-    if (!doc.exists) {
-      return null;
+    try {
+      const doc = await this.collection.doc(uid).get();
+      if (!doc.exists) {
+        return null;
+      }
+      return doc.data() as UserProfile;
+    } catch (err: unknown) {
+      logger.error(`Error querying user profile for UID: ${uid}`, err);
+      const e = err as { code?: number | string; message?: string };
+      if (
+        e?.code === 14 ||
+        e?.code === 7 ||
+        e?.code === 16 ||
+        e?.message?.includes('ECONNREFUSED') ||
+        e?.message?.includes('UNAVAILABLE') ||
+        e?.message?.includes('credentials')
+      ) {
+        return null;
+      }
+      throw err;
     }
-    return doc.data() as UserProfile;
   }
 
   async create(profile: UserProfile): Promise<UserProfile> {

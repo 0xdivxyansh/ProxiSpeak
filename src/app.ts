@@ -18,6 +18,7 @@ export function createApp(): Application {
     helmet({
       contentSecurityPolicy: false,
       crossOriginEmbedderPolicy: false,
+      crossOriginOpenerPolicy: { policy: 'same-origin-allow-popups' },
     }),
   );
 

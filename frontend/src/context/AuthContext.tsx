@@ -3,6 +3,8 @@ import { apiClient } from '../api/client';
 import { initializeApp, getApps } from 'firebase/app';
 import {
   getAuth,
+  signInWithPopup,
+  GoogleAuthProvider,
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
   updateProfile,
@@ -22,6 +24,7 @@ interface AuthContextType {
   user: AuthUser | null;
   token: string | null;
   loading: boolean;
+  signInWithGoogle: () => Promise<void>;
   signInWithEmail: (email: string, pass: string) => Promise<void>;
   signUpWithEmail: (email: string, pass: string, name: string) => Promise<void>;
   signInWithDemo: (username: string) => void;
@@ -116,6 +119,26 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   }, []);
 
+  const signInWithGoogle = async () => {
+    if (!firebaseAuth) {
+      throw new Error(
+        'Firebase client configuration not found. Please check frontend/.env or use Quick Test Account!',
+      );
+    }
+    const provider = new GoogleAuthProvider();
+    provider.setCustomParameters({ prompt: 'select_account' });
+    const cred = await signInWithPopup(firebaseAuth, provider);
+    const idToken = await cred.user.getIdToken();
+    setToken(idToken);
+    localStorage.setItem('proxispeak_token', idToken);
+    setUser({
+      uid: cred.user.uid,
+      email: cred.user.email,
+      displayName: cred.user.displayName || cred.user.email?.split('@')[0] || 'User',
+      isDemo: false,
+    });
+  };
+
   const signInWithEmail = async (email: string, pass: string) => {
     if (!firebaseAuth) {
       throw new Error(
@@ -188,6 +211,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         user,
         token,
         loading,
+        signInWithGoogle,
         signInWithEmail,
         signUpWithEmail,
         signInWithDemo,

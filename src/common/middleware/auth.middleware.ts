@@ -31,13 +31,13 @@ export async function requireAuth(req: Request, _res: Response, next: NextFuncti
     return next(new UnauthorizedError('Bearer token is empty.'));
   }
 
-  // Support mock tokens during automated test suite execution
-  if (env.NODE_ENV === 'test' && token.startsWith('mock-token-')) {
+  // Support mock tokens during automated tests and local development testing
+  if ((env.NODE_ENV === 'test' || env.NODE_ENV === 'development') && token.startsWith('mock-token-')) {
     const uid = token.replace('mock-token-', '');
     req.user = {
       uid,
       email: `${uid}@example.com`,
-      displayName: `Test User ${uid}`,
+      displayName: `Explorer ${uid}`,
       emailVerified: true,
     };
     return next();
@@ -101,12 +101,12 @@ export async function optionalAuth(
     return next();
   }
 
-  if (env.NODE_ENV === 'test' && token.startsWith('mock-token-')) {
+  if ((env.NODE_ENV === 'test' || env.NODE_ENV === 'development') && token.startsWith('mock-token-')) {
     const uid = token.replace('mock-token-', '');
     req.user = {
       uid,
       email: `${uid}@example.com`,
-      displayName: `Test User ${uid}`,
+      displayName: `Explorer ${uid}`,
       emailVerified: true,
     };
     return next();

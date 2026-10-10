@@ -9,6 +9,18 @@ import { logger } from '../common/utils/logger';
 
 let appInstance: App;
 
+export function hasFirebaseCredentials(): boolean {
+  if (env.USE_EMULATOR) return true;
+  if (env.FIREBASE_SERVICE_ACCOUNT_KEY && env.FIREBASE_SERVICE_ACCOUNT_KEY.trim().length > 0) {
+    return true;
+  }
+  if (env.FIREBASE_SERVICE_ACCOUNT_PATH && env.FIREBASE_SERVICE_ACCOUNT_PATH.trim().length > 0) {
+    const resolvedPath = path.resolve(process.cwd(), env.FIREBASE_SERVICE_ACCOUNT_PATH.trim());
+    return fs.existsSync(resolvedPath);
+  }
+  return false;
+}
+
 export function initializeFirebase(): App {
   const existingApps = getApps();
   if (existingApps.length > 0) {
@@ -75,24 +87,26 @@ export function initializeFirebase(): App {
       logger.info('Using emulator / default test credentials for Firebase Admin');
       credential = applicationDefault();
     } else {
-      try {
-        credential = applicationDefault();
-        logger.info('Firebase Admin initialized with Application Default Credentials (ADC)');
-      } catch (err) {
-        logger.warn(
-          'No Firebase service account credentials found. Operations requiring elevated cloud permissions may fail.',
-          { error: err instanceof Error ? err.message : String(err) },
-        );
-      }
+      logger.info(
+        'No Firebase service account key found in .env (FIREBASE_SERVICE_ACCOUNT_PATH/KEY). Running with local storage & database fallback.',
+      );
     }
   }
 
   try {
-    appInstance = initializeApp({
-      credential,
+    const appConfig: {
+      projectId: string;
+      storageBucket: string;
+      credential?: ReturnType<typeof cert>;
+    } = {
       projectId: env.FIREBASE_PROJECT_ID,
       storageBucket: env.FIREBASE_STORAGE_BUCKET,
-    });
+    };
+    if (credential) {
+      appConfig.credential = credential;
+    }
+
+    appInstance = initializeApp(appConfig);
     logger.info('Firebase Admin SDK initialized successfully', {
       projectId: env.FIREBASE_PROJECT_ID,
       storageBucket: env.FIREBASE_STORAGE_BUCKET,

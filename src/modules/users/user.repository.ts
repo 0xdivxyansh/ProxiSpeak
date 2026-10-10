@@ -1,7 +1,8 @@
-import { getFirestore } from '../../config/firebase';
+import { getFirestore, hasFirebaseCredentials } from '../../config/firebase';
 import { Collections } from '../../infrastructure/firestore/collections';
 import { UserProfile } from './user.model';
 import { logger } from '../../common/utils/logger';
+import { env } from '../../config/env';
 
 export interface IUserRepository {
   findById(uid: string): Promise<UserProfile | null>;
@@ -17,6 +18,10 @@ export class FirestoreUserRepository implements IUserRepository {
   }
 
   async findById(uid: string): Promise<UserProfile | null> {
+    if (!hasFirebaseCredentials() && !env.USE_EMULATOR) {
+      return this.memoryUsers.get(uid) || null;
+    }
+
     try {
       const doc = await this.collection.doc(uid).get();
       if (!doc.exists) {
@@ -44,12 +49,16 @@ export class FirestoreUserRepository implements IUserRepository {
 
   async create(profile: UserProfile): Promise<UserProfile> {
     this.memoryUsers.set(profile.uid, { ...profile });
-    try {
-      await this.collection.doc(profile.uid).set(profile);
-      logger.debug(`User profile created for UID: ${profile.uid}`);
-    } catch (err: unknown) {
-      logger.warn(`Could not persist user profile to Firestore (using fallback): ${profile.uid}`);
+
+    if (hasFirebaseCredentials() || env.USE_EMULATOR) {
+      try {
+        await this.collection.doc(profile.uid).set(profile);
+        logger.debug(`User profile created for UID: ${profile.uid}`);
+      } catch (err: unknown) {
+        logger.warn(`Could not persist user profile to Firestore (using fallback): ${profile.uid}`);
+      }
     }
+
     return profile;
   }
 

@@ -1,4 +1,4 @@
-import { getStorageBucket } from '../../config/firebase';
+import { getStorageBucket, hasFirebaseCredentials } from '../../config/firebase';
 import { env } from '../../config/env';
 import { logger } from '../../common/utils/logger';
 
@@ -23,6 +23,10 @@ export interface IStorageService {
   deleteFile(storagePath: string): Promise<void>;
 }
 
+import fs from 'fs';
+import path from 'path';
+import { inMemoryFiles } from './storage.routes';
+
 export class FirebaseStorageService implements IStorageService {
   private get bucket() {
     return getStorageBucket();
@@ -33,10 +37,13 @@ export class FirebaseStorageService implements IStorageService {
     contentType: string,
     expirySeconds = env.UPLOAD_URL_EXPIRY_SECONDS,
   ): Promise<string> {
-    const file = this.bucket.file(storagePath);
-    const expires = Date.now() + expirySeconds * 1000;
+    if (!hasFirebaseCredentials() && !env.USE_EMULATOR) {
+      return `${env.API_BASE_URL}/api/v1/storage/upload?path=${encodeURIComponent(storagePath)}`;
+    }
 
     try {
+      const file = this.bucket.file(storagePath);
+      const expires = Date.now() + expirySeconds * 1000;
       const [url] = await file.getSignedUrl({
         version: 'v4',
         action: 'write',
@@ -44,16 +51,20 @@ export class FirebaseStorageService implements IStorageService {
         contentType,
       });
       return url;
-    } catch (err) {
-      logger.error('Error generating signed upload URL via Firebase Admin', err, { storagePath });
-      // When running in local development or emulator without cloud credentials, fallback to emulator URL
-      if (env.USE_EMULATOR || env.NODE_ENV === 'test') {
+    } catch (err: unknown) {
+      logger.warn(
+        'Could not generate cloud signed upload URL (no Firebase service account private key). Using local backend storage fallback.',
+        { storagePath, error: err instanceof Error ? err.message : String(err) },
+      );
+
+      if (env.USE_EMULATOR) {
         const emulatorHost = env.FIREBASE_STORAGE_EMULATOR_HOST || '127.0.0.1:9199';
         return `http://${emulatorHost}/v0/b/${env.FIREBASE_STORAGE_BUCKET}/o/${encodeURIComponent(
           storagePath,
         )}?uploadType=media`;
       }
-      throw err;
+
+      return `${env.API_BASE_URL}/api/v1/storage/upload?path=${encodeURIComponent(storagePath)}`;
     }
   }
 
@@ -61,32 +72,63 @@ export class FirebaseStorageService implements IStorageService {
     storagePath: string,
     expirySeconds = env.PLAYBACK_URL_EXPIRY_SECONDS,
   ): Promise<string> {
-    const file = this.bucket.file(storagePath);
-    const expires = Date.now() + expirySeconds * 1000;
+    if (!hasFirebaseCredentials() && !env.USE_EMULATOR) {
+      return `${env.API_BASE_URL}/api/v1/storage/media?path=${encodeURIComponent(storagePath)}`;
+    }
 
     try {
+      const file = this.bucket.file(storagePath);
+      const expires = Date.now() + expirySeconds * 1000;
       const [url] = await file.getSignedUrl({
         version: 'v4',
         action: 'read',
         expires,
       });
       return url;
-    } catch (err) {
-      logger.error('Error generating signed playback URL via Firebase Admin', err, { storagePath });
-      if (env.USE_EMULATOR || env.NODE_ENV === 'test') {
+    } catch (err: unknown) {
+      logger.warn(
+        'Could not generate cloud signed playback URL (no Firebase service account private key). Using local backend media fallback.',
+        { storagePath, error: err instanceof Error ? err.message : String(err) },
+      );
+
+      if (env.USE_EMULATOR) {
         const emulatorHost = env.FIREBASE_STORAGE_EMULATOR_HOST || '127.0.0.1:9199';
         return `http://${emulatorHost}/v0/b/${env.FIREBASE_STORAGE_BUCKET}/o/${encodeURIComponent(
           storagePath,
         )}?alt=media`;
       }
-      throw err;
+
+      return `${env.API_BASE_URL}/api/v1/storage/media?path=${encodeURIComponent(storagePath)}`;
     }
   }
 
   async getFileMetadata(storagePath: string): Promise<StorageFileMetadata | null> {
-    const file = this.bucket.file(storagePath);
+    // 1. Check disk storage
+    const localDiskPath = path.resolve(process.cwd(), 'uploads', storagePath);
+    if (fs.existsSync(localDiskPath)) {
+      const stat = fs.statSync(localDiskPath);
+      return {
+        exists: true,
+        sizeBytes: stat.size,
+        contentType: 'audio/mpeg',
+        updatedAt: stat.mtime.toISOString(),
+      };
+    }
 
+    // 2. Check inMemoryFiles
+    const mem = inMemoryFiles.get(storagePath);
+    if (mem) {
+      return {
+        exists: true,
+        sizeBytes: mem.data.length,
+        contentType: mem.contentType,
+        updatedAt: mem.updatedAt,
+      };
+    }
+
+    // 3. Fallback to Cloud Storage bucket
     try {
+      const file = this.bucket.file(storagePath);
       const [exists] = await file.exists();
       if (!exists) {
         return null;
@@ -100,14 +142,24 @@ export class FirebaseStorageService implements IStorageService {
         updatedAt: metadata.updated,
       };
     } catch (err) {
-      logger.error(`Failed to retrieve file metadata for: ${storagePath}`, err);
-      throw err;
+      logger.warn(`Could not query Cloud Storage object metadata: ${storagePath}`);
+      return null;
     }
   }
 
   async deleteFile(storagePath: string): Promise<void> {
-    const file = this.bucket.file(storagePath);
+    inMemoryFiles.delete(storagePath);
+    const localDiskPath = path.resolve(process.cwd(), 'uploads', storagePath);
+    if (fs.existsSync(localDiskPath)) {
+      try {
+        fs.unlinkSync(localDiskPath);
+      } catch {
+        // ignore
+      }
+    }
+
     try {
+      const file = this.bucket.file(storagePath);
       await file.delete({ ignoreNotFound: true });
       logger.debug(`File deleted from Storage: ${storagePath}`);
     } catch (err) {

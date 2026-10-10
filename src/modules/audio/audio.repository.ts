@@ -1,7 +1,8 @@
-import { getFirestore } from '../../config/firebase';
+import { getFirestore, hasFirebaseCredentials } from '../../config/firebase';
 import { Collections } from '../../infrastructure/firestore/collections';
 import { AudioRecording } from './audio.model';
 import { logger } from '../../common/utils/logger';
+import { env } from '../../config/env';
 
 export interface IAudioRepository {
   findById(id: string): Promise<AudioRecording | null>;
@@ -19,6 +20,10 @@ export class FirestoreAudioRepository implements IAudioRepository {
   }
 
   async findById(id: string): Promise<AudioRecording | null> {
+    if (!hasFirebaseCredentials() && !env.USE_EMULATOR) {
+      return this.memoryCache.get(id) || null;
+    }
+
     try {
       const doc = await this.collection.doc(id).get();
       if (!doc.exists) {
@@ -46,12 +51,16 @@ export class FirestoreAudioRepository implements IAudioRepository {
 
   async create(audio: AudioRecording): Promise<AudioRecording> {
     this.memoryCache.set(audio.id, { ...audio });
-    try {
-      await this.collection.doc(audio.id).set(audio);
-      logger.debug(`Audio record created in Firestore: ${audio.id}`);
-    } catch (err: unknown) {
-      logger.warn(`Could not persist audio to Firestore (using memory fallback): ${audio.id}`);
+
+    if (hasFirebaseCredentials() || env.USE_EMULATOR) {
+      try {
+        await this.collection.doc(audio.id).set(audio);
+        logger.debug(`Audio record created in Firestore: ${audio.id}`);
+      } catch (err: unknown) {
+        logger.warn(`Could not persist audio to Firestore (using memory fallback): ${audio.id}`);
+      }
     }
+
     return audio;
   }
 
@@ -69,22 +78,29 @@ export class FirestoreAudioRepository implements IAudioRepository {
     };
 
     this.memoryCache.set(id, updated);
-    try {
-      await this.collection.doc(id).set(updated, { merge: true });
-      logger.debug(`Audio record updated in Firestore: ${id}`);
-    } catch (err: unknown) {
-      logger.warn(`Could not persist audio update to Firestore (using memory fallback): ${id}`);
+
+    if (hasFirebaseCredentials() || env.USE_EMULATOR) {
+      try {
+        await this.collection.doc(id).set(updated, { merge: true });
+        logger.debug(`Audio record updated in Firestore: ${id}`);
+      } catch (err: unknown) {
+        logger.warn(`Could not persist audio update to Firestore (using memory fallback): ${id}`);
+      }
     }
+
     return updated;
   }
 
   async delete(id: string): Promise<void> {
     this.memoryCache.delete(id);
-    try {
-      await this.collection.doc(id).delete();
-      logger.debug(`Audio record deleted from Firestore: ${id}`);
-    } catch (err: unknown) {
-      logger.warn(`Could not delete audio from Firestore (using memory fallback): ${id}`);
+
+    if (hasFirebaseCredentials() || env.USE_EMULATOR) {
+      try {
+        await this.collection.doc(id).delete();
+        logger.debug(`Audio record deleted from Firestore: ${id}`);
+      } catch (err: unknown) {
+        logger.warn(`Could not delete audio from Firestore (using memory fallback): ${id}`);
+      }
     }
   }
 
@@ -105,6 +121,10 @@ export class FirestoreAudioRepository implements IAudioRepository {
           }
         }
       }
+    }
+
+    if (!hasFirebaseCredentials() && !env.USE_EMULATOR) {
+      return Array.from(candidateMap.values());
     }
 
     try {

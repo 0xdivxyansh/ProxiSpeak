@@ -41,3 +41,6 @@ coverage/
 Thumbs.db
 .vscode/
 .idea/
+
+# Local media uploads
+uploads/

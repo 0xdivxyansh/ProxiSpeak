@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { healthRoutes } from '../modules/health/health.routes';
 import { userRoutes } from '../modules/users/user.routes';
 import { audioRoutes } from '../modules/audio/audio.routes';
+import { storageRoutes } from '../infrastructure/storage/storage.routes';
 
 export function createApiV1Router(): Router {
   const router = Router();
@@ -9,6 +10,7 @@ export function createApiV1Router(): Router {
   router.use('/health', healthRoutes);
   router.use('/users', userRoutes);
   router.use('/audio', audioRoutes);
+  router.use('/storage', storageRoutes);
 
   return router;
 }

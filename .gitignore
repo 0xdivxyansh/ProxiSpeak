@@ -22,6 +22,8 @@ dist/
 !firestore.indexes.json
 !firebase.json
 !cors.json
+!vercel.json
+!**/vercel.json
 serviceAccountKey*.json
 *firebase-adminsdk*.json
 

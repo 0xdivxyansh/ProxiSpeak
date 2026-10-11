@@ -1,0 +1,23 @@
+services:
+  - type: web
+    name: proxispeak-backend
+    runtime: node
+    plan: free
+    buildCommand: npm install && npm run build
+    startCommand: npm start
+    healthCheckPath: /api/v1/health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 10000
+      - key: CORS_ORIGIN
+        value: "*"
+      - key: API_BASE_URL
+        sync: false
+      - key: FIREBASE_PROJECT_ID
+        value: proxispeak-f15c7
+      - key: FIREBASE_STORAGE_BUCKET
+        value: proxispeak-f15c7.firebasestorage.app
+      - key: FIREBASE_SERVICE_ACCOUNT_KEY
+        sync: false

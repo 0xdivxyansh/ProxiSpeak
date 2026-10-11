@@ -11,7 +11,7 @@ async function bootstrap() {
 
     const server = http.createServer(app);
 
-    server.listen(env.PORT, () => {
+    server.listen(env.PORT, '0.0.0.0', () => {
       logger.info(`====================================================`);
       logger.info(`  ProxiSpeak Backend Server is running!`);
       logger.info(`  Environment : ${env.NODE_ENV}`);

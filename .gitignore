@@ -3,6 +3,7 @@ node_modules/
 
 # Production build output
 dist/
+*.tsbuildinfo
 
 # Environment files
 .env
@@ -17,8 +18,11 @@ dist/
 # Firebase service account keys and credentials
 *.json
 !package.json
+!**/package.json
 !package-lock.json
-!tsconfig.json
+!**/package-lock.json
+!tsconfig*.json
+!**/tsconfig*.json
 !firestore.indexes.json
 !firebase.json
 !cors.json

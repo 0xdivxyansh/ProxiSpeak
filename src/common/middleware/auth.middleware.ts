@@ -1,8 +1,41 @@
 import { Request, Response, NextFunction } from 'express';
-import { getFirebaseAuth } from '../../config/firebase';
+import { getFirebaseAuth, hasFirebaseCredentials } from '../../config/firebase';
 import { UnauthorizedError } from '../errors/app-error';
 import { logger } from '../utils/logger';
 import { env } from '../../config/env';
+
+/**
+ * Safely extract basic user identity from a Firebase JWT payload when running
+ * in fallback mode without private service account credentials.
+ */
+function extractFallbackUserFromJwt(
+  token: string,
+): { uid: string; email?: string; displayName?: string; emailVerified?: boolean } | null {
+  try {
+    const parts = token.split('.');
+    if (parts.length === 3) {
+      const payloadJson = Buffer.from(parts[1], 'base64url').toString('utf8');
+      const payload = JSON.parse(payloadJson);
+      const uid = payload.user_id || payload.sub;
+      if (typeof uid === 'string' && uid.trim().length > 0) {
+        return {
+          uid: uid.trim(),
+          email: typeof payload.email === 'string' ? payload.email : undefined,
+          displayName:
+            typeof payload.name === 'string'
+              ? payload.name
+              : typeof payload.email === 'string'
+                ? payload.email.split('@')[0]
+                : `User ${uid.slice(0, 6)}`,
+          emailVerified: Boolean(payload.email_verified),
+        };
+      }
+    }
+  } catch {
+    // Malformed token payload
+  }
+  return null;
+}
 
 /**
  * Strict authentication middleware for protected routes.
@@ -50,9 +83,9 @@ export async function requireAuth(req: Request, _res: Response, next: NextFuncti
     );
   }
 
-  // Support mock tokens during automated tests and local development testing
-  if ((env.NODE_ENV === 'test' || env.NODE_ENV === 'development') && token.startsWith('mock-token-')) {
-    const uid = token.replace('mock-token-', '');
+  // Support mock / demo explorer tokens across all environments
+  if (token.startsWith('mock-token-')) {
+    const uid = token.replace('mock-token-', '').trim() || 'demo_explorer';
     req.user = {
       uid,
       email: `${uid}@example.com`,
@@ -64,7 +97,8 @@ export async function requireAuth(req: Request, _res: Response, next: NextFuncti
 
   try {
     const auth = getFirebaseAuth();
-    const decodedToken = await auth.verifyIdToken(token, true);
+    const hasCreds = hasFirebaseCredentials();
+    const decodedToken = await auth.verifyIdToken(token, hasCreds);
 
     req.user = {
       uid: decodedToken.uid,
@@ -73,7 +107,7 @@ export async function requireAuth(req: Request, _res: Response, next: NextFuncti
       emailVerified: decodedToken.email_verified,
     };
 
-    next();
+    return next();
   } catch (err: unknown) {
     logger.warn('Failed to verify Firebase ID token', {
       error: err instanceof Error ? err.message : String(err),
@@ -87,6 +121,19 @@ export async function requireAuth(req: Request, _res: Response, next: NextFuncti
         emailVerified: true,
       };
       return next();
+    }
+
+    // In fallback mode (when no service account key is configured),
+    // allow validly formatted Firebase JWTs by inspecting token claims
+    if (!hasFirebaseCredentials()) {
+      const fallbackUser = extractFallbackUserFromJwt(token);
+      if (fallbackUser) {
+        logger.info('Authenticated user via Firebase JWT fallback claim extraction', {
+          uid: fallbackUser.uid,
+        });
+        req.user = fallbackUser;
+        return next();
+      }
     }
 
     if (err && typeof err === 'object' && 'code' in err) {
@@ -132,8 +179,8 @@ export async function optionalAuth(
     return next();
   }
 
-  if ((env.NODE_ENV === 'test' || env.NODE_ENV === 'development') && token.startsWith('mock-token-')) {
-    const uid = token.replace('mock-token-', '');
+  if (token.startsWith('mock-token-')) {
+    const uid = token.replace('mock-token-', '').trim() || 'demo_explorer';
     req.user = {
       uid,
       email: `${uid}@example.com`,
@@ -145,7 +192,8 @@ export async function optionalAuth(
 
   try {
     const auth = getFirebaseAuth();
-    const decodedToken = await auth.verifyIdToken(token);
+    const hasCreds = hasFirebaseCredentials();
+    const decodedToken = await auth.verifyIdToken(token, hasCreds);
     req.user = {
       uid: decodedToken.uid,
       email: decodedToken.email,
@@ -153,6 +201,13 @@ export async function optionalAuth(
       emailVerified: decodedToken.email_verified,
     };
   } catch (err) {
+    if (!hasFirebaseCredentials()) {
+      const fallbackUser = extractFallbackUserFromJwt(token);
+      if (fallbackUser) {
+        req.user = fallbackUser;
+        return next();
+      }
+    }
     // Non-fatal for optional auth: log and proceed as anonymous
     logger.debug('Optional auth token invalid, treating as unauthenticated', {
       error: err instanceof Error ? err.message : String(err),

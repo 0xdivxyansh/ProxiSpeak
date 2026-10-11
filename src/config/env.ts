@@ -20,11 +20,11 @@ const envSchema = z.object({
   FIREBASE_PROJECT_ID: z
     .string()
     .min(1, 'FIREBASE_PROJECT_ID is required')
-    .default('proxispeak-dev'),
+    .default('proxispeak-f15c7'),
   FIREBASE_STORAGE_BUCKET: z
     .string()
     .min(1, 'FIREBASE_STORAGE_BUCKET is required')
-    .default('proxispeak-dev.appspot.com'),
+    .default('proxispeak-f15c7.firebasestorage.app'),
   FIREBASE_SERVICE_ACCOUNT_PATH: z.string().optional(),
   FIREBASE_SERVICE_ACCOUNT_KEY: z.string().optional(),
 

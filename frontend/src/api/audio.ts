@@ -105,10 +105,23 @@ export const audioApi = {
       // In local development, route local backend URLs through the Vite proxy (/api)
       // to guarantee same-origin requests and avoid any cross-origin port issues
       let targetUrl = uploadUrl;
-      if (targetUrl.startsWith('http://localhost:5000/api/')) {
-        targetUrl = targetUrl.replace('http://localhost:5000/api/', '/api/');
-      } else if (targetUrl.startsWith('http://127.0.0.1:5000/api/')) {
-        targetUrl = targetUrl.replace('http://127.0.0.1:5000/api/', '/api/');
+      const isRemoteClient =
+        typeof window !== 'undefined' &&
+        window.location.hostname !== 'localhost' &&
+        window.location.hostname !== '127.0.0.1';
+
+      if (isRemoteClient) {
+        if (targetUrl.includes('localhost:5000') || targetUrl.includes('127.0.0.1:5000')) {
+          targetUrl = targetUrl
+            .replace('http://localhost:5000', 'https://proxispeak.onrender.com')
+            .replace('http://127.0.0.1:5000', 'https://proxispeak.onrender.com');
+        }
+      } else {
+        if (targetUrl.startsWith('http://localhost:5000/api/')) {
+          targetUrl = targetUrl.replace('http://localhost:5000/api/', '/api/');
+        } else if (targetUrl.startsWith('http://127.0.0.1:5000/api/')) {
+          targetUrl = targetUrl.replace('http://127.0.0.1:5000/api/', '/api/');
+        }
       }
 
       const xhr = new XMLHttpRequest();
@@ -143,10 +156,23 @@ export const audioApi = {
 
   async getPlayback(audioId: string): Promise<PlaybackResponse> {
     const res = await apiClient.get<PlaybackResponse>(`/audio/${audioId}/playback`);
-    if (res.playbackUrl.startsWith('http://localhost:5000/api/')) {
-      res.playbackUrl = res.playbackUrl.replace('http://localhost:5000/api/', '/api/');
-    } else if (res.playbackUrl.startsWith('http://127.0.0.1:5000/api/')) {
-      res.playbackUrl = res.playbackUrl.replace('http://127.0.0.1:5000/api/', '/api/');
+    const isRemoteClient =
+      typeof window !== 'undefined' &&
+      window.location.hostname !== 'localhost' &&
+      window.location.hostname !== '127.0.0.1';
+
+    if (isRemoteClient) {
+      if (res.playbackUrl.includes('localhost:5000') || res.playbackUrl.includes('127.0.0.1:5000')) {
+        res.playbackUrl = res.playbackUrl
+          .replace('http://localhost:5000', 'https://proxispeak.onrender.com')
+          .replace('http://127.0.0.1:5000', 'https://proxispeak.onrender.com');
+      }
+    } else {
+      if (res.playbackUrl.startsWith('http://localhost:5000/api/')) {
+        res.playbackUrl = res.playbackUrl.replace('http://localhost:5000/api/', '/api/');
+      } else if (res.playbackUrl.startsWith('http://127.0.0.1:5000/api/')) {
+        res.playbackUrl = res.playbackUrl.replace('http://127.0.0.1:5000/api/', '/api/');
+      }
     }
     return res;
   },

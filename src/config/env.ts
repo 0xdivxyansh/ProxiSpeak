@@ -6,10 +6,15 @@ import { logger } from '../common/utils/logger';
 // Load environment variables from .env file
 dotenv.config({ path: path.resolve(process.cwd(), '.env') });
 
+const defaultApiBaseUrl =
+  process.env.API_BASE_URL ||
+  process.env.RENDER_EXTERNAL_URL ||
+  'http://localhost:5000';
+
 const envSchema = z.object({
   NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
   PORT: z.coerce.number().int().positive().default(5000),
-  API_BASE_URL: z.string().url().default('http://localhost:5000'),
+  API_BASE_URL: z.string().url().default(defaultApiBaseUrl),
   CORS_ORIGIN: z.string().default('*'),
 
   FIREBASE_PROJECT_ID: z

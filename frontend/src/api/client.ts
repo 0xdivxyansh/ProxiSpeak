@@ -18,7 +18,11 @@ class ApiClient {
   private baseUrl: string =
     import.meta.env.VITE_API_BASE_URL && import.meta.env.VITE_API_BASE_URL.trim().length > 0
       ? `${import.meta.env.VITE_API_BASE_URL.replace(/\/+$/, '')}/api/v1`
-      : '/api/v1';
+      : typeof window !== 'undefined' &&
+          window.location.hostname !== 'localhost' &&
+          window.location.hostname !== '127.0.0.1'
+        ? 'https://proxispeak.onrender.com/api/v1'
+        : '/api/v1';
 
   private tokenGetter: (() => Promise<string | null> | string | null) | null = null;
 

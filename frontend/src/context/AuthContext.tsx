@@ -33,20 +33,34 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-// Optional Firebase initialization if env variables provided
-const firebaseApiKey = import.meta.env.VITE_FIREBASE_API_KEY;
+// Firebase client web configuration (uses env vars if present, otherwise defaults to public project config)
+const firebaseApiKey =
+  import.meta.env.VITE_FIREBASE_API_KEY || 'AIzaSyBuGI3z4-m0KCUlhHdkv71SpOWg7m6OQtI';
+const firebaseAuthDomain =
+  import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || 'proxispeak-f15c7.firebaseapp.com';
+const firebaseProjectId =
+  import.meta.env.VITE_FIREBASE_PROJECT_ID || 'proxispeak-f15c7';
+const firebaseStorageBucket =
+  import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || 'proxispeak-f15c7.firebasestorage.app';
+const firebaseMessagingSenderId =
+  import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || '199296776920';
+const firebaseAppId =
+  import.meta.env.VITE_FIREBASE_APP_ID || '1:199296776920:web:3faff92b4cf4d0fec435ad';
+const firebaseMeasurementId =
+  import.meta.env.VITE_FIREBASE_MEASUREMENT_ID || 'G-KTN6FTKD0N';
+
 const isFirebaseConfigured = Boolean(firebaseApiKey && firebaseApiKey.length > 5);
 
 let firebaseAuth: ReturnType<typeof getAuth> | null = null;
 if (isFirebaseConfigured && getApps().length === 0) {
   const app = initializeApp({
-    apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
-    authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
-    projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
-    storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
-    messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
-    appId: import.meta.env.VITE_FIREBASE_APP_ID,
-    measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID,
+    apiKey: firebaseApiKey,
+    authDomain: firebaseAuthDomain,
+    projectId: firebaseProjectId,
+    storageBucket: firebaseStorageBucket,
+    messagingSenderId: firebaseMessagingSenderId,
+    appId: firebaseAppId,
+    measurementId: firebaseMeasurementId,
   });
   firebaseAuth = getAuth(app);
 }

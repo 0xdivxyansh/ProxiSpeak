@@ -13,12 +13,13 @@ export function createApp(): Application {
   const app = express();
 
   // 1. Security HTTP headers via Helmet
-  // Allow inline scripts/styles for Swagger UI
+  // Allow inline scripts/styles for Swagger UI and cross-origin audio streaming
   app.use(
     helmet({
       contentSecurityPolicy: false,
       crossOriginEmbedderPolicy: false,
       crossOriginOpenerPolicy: { policy: 'same-origin-allow-popups' },
+      crossOriginResourcePolicy: { policy: 'cross-origin' },
     }),
   );
 

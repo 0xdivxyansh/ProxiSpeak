@@ -32,6 +32,7 @@ export const AudioPlayerProvider: React.FC<{ children: React.ReactNode }> = ({ c
 
   useEffect(() => {
     const audio = new Audio();
+    audio.crossOrigin = 'anonymous';
     audio.volume = volume;
     audioRef.current = audio;
 
@@ -45,7 +46,9 @@ export const AudioPlayerProvider: React.FC<{ children: React.ReactNode }> = ({ c
       setCurrentTime(0);
     };
     const onError = () => {
-      setError('Failed to play audio stream');
+      const mediaErr = audio.error;
+      const detail = mediaErr ? ` (${mediaErr.message || 'code ' + mediaErr.code})` : '';
+      setError(`Failed to play audio stream${detail}`);
       setLoading(false);
       setIsPlaying(false);
     };
@@ -83,7 +86,22 @@ export const AudioPlayerProvider: React.FC<{ children: React.ReactNode }> = ({ c
     try {
       // Fetch signed playback URL from backend
       const playbackData = await audioApi.getPlayback(item.id);
-      audioRef.current.src = playbackData.playbackUrl;
+      let streamUrl = playbackData.playbackUrl;
+
+      // When running in the browser and the playback URL points to the backend /api/... path,
+      // convert to a relative path so it routes through the same-origin reverse proxy
+      if (typeof window !== 'undefined' && streamUrl.startsWith('http')) {
+        try {
+          const parsed = new URL(streamUrl);
+          if (parsed.pathname.startsWith('/api/')) {
+            streamUrl = `${parsed.pathname}${parsed.search}`;
+          }
+        } catch {
+          // Keep original absolute URL
+        }
+      }
+
+      audioRef.current.src = streamUrl;
       await audioRef.current.play();
       setIsPlaying(true);
     } catch (err: unknown) {

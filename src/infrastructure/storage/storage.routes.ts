@@ -25,6 +25,8 @@ storageRoutes.put(
   '/upload',
   express.raw({ type: () => true, limit: '25mb' }),
   async (req: Request, res: Response): Promise<void> => {
+    res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
+    res.setHeader('Access-Control-Allow-Origin', '*');
     try {
       const storagePath = req.query.path as string;
       if (!storagePath) {
@@ -73,6 +75,9 @@ storageRoutes.put(
  * Serves media files directly to the browser with Range header streaming support
  */
 storageRoutes.get('/media', (req: Request, res: Response): void => {
+  res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
+  res.setHeader('Access-Control-Allow-Origin', '*');
+
   const storagePath = req.query.path as string;
   if (!storagePath) {
     res.status(400).json({ success: false, error: 'Missing ?path query parameter' });
@@ -83,7 +88,12 @@ storageRoutes.get('/media', (req: Request, res: Response): void => {
 
   // If file exists on disk, stream via res.sendFile
   if (fs.existsSync(fullPath)) {
-    res.sendFile(fullPath);
+    res.sendFile(fullPath, {
+      headers: {
+        'Cross-Origin-Resource-Policy': 'cross-origin',
+        'Access-Control-Allow-Origin': '*',
+      },
+    });
     return;
   }
 
@@ -93,6 +103,8 @@ storageRoutes.get('/media', (req: Request, res: Response): void => {
     res.setHeader('Content-Type', mem.contentType);
     res.setHeader('Content-Length', mem.data.length);
     res.setHeader('Accept-Ranges', 'bytes');
+    res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
+    res.setHeader('Access-Control-Allow-Origin', '*');
     res.send(mem.data);
     return;
   }
